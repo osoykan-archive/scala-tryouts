@@ -2,38 +2,37 @@ import org.apache.http.HttpEntity
 import org.apache.http.client.methods.{CloseableHttpResponse, RequestBuilder}
 import org.apache.http.entity.ByteArrayEntity
 import org.apache.http.impl.client.HttpClientBuilder
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.{any, endsWith}
 import org.mockito.MockitoSugar.{mock, never, times, verify, when}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.must.Matchers.be
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 
-import java.io.{ByteArrayInputStream, InputStream}
+import java.io.InputStream
 import scala.util.Using
 
 class HttpResponseTests extends AnyFunSuite {
 
-  test("When the Response has empty Entity and Content") {
+  test("When the Response has empty Entity and Content, then RewindableHttpResponse should be None") {
 
     // Arrange
     val responseMock = mock[CloseableHttpResponse]
     when(responseMock.getEntity).thenReturn(null)
 
     // Act
-    val response = new HttpResponse(responseMock)
+    val response               = new HttpResponse(responseMock)
     val rewindableHttpResponse = response.getRewindableHttpResponse
 
     // Assert
-    rewindableHttpResponse.getStream shouldBe None
-    rewindableHttpResponse.getString shouldBe None
+    rewindableHttpResponse shouldBe None
   }
 
-  test("When the Stream is repeatable then it should close 1 time the stream") {
+  test("When the Stream is repeatable, then closing the main stream should also close(1 time) the response stream") {
 
     // Arrange
     val responseMock = mock[CloseableHttpResponse]
-    val entityMock = mock[HttpEntity]
-    val inputStream = mock[InputStream]
+    val entityMock   = mock[HttpEntity]
+    val inputStream  = mock[InputStream]
     when(inputStream.markSupported()).thenReturn(true)
     when(inputStream.read(any[Array[Byte]])).thenReturn(-1)
     when(entityMock.getContent).thenReturn(inputStream)
@@ -50,12 +49,32 @@ class HttpResponseTests extends AnyFunSuite {
     verify(inputStream).close()
   }
 
+  test("When casting base class after retrieving RewindableHttpResponse") {
+
+    // Arrange
+    val string          = "content"
+    val byteArrayEntity = new ByteArrayEntity(string.getBytes) // re-readable entity
+
+    val responseMock = mock[CloseableHttpResponse]
+    when(responseMock.getEntity).thenReturn(byteArrayEntity)
+
+    val response = new HttpResponse(responseMock)
+
+    // Act
+    val rewindableHttpResponse    = response.getRewindableHttpResponse.get
+    val newResponse: HttpResponse = rewindableHttpResponse
+
+    // Assert
+    newResponse.getString.get shouldBe string
+    newResponse.getString.get shouldBe string // Read the stream one more time
+  }
+
   test("When the Stream is repeatable, then closing the rewindableHttpResponse should also close the main httpResponse") {
 
     // Arrange
     val responseMock = mock[CloseableHttpResponse]
-    val entityMock = mock[HttpEntity]
-    val inputStream = mock[InputStream]
+    val entityMock   = mock[HttpEntity]
+    val inputStream  = mock[InputStream]
     when(inputStream.markSupported()).thenReturn(true)
     when(inputStream.read(any[Array[Byte]])).thenReturn(-1)
     when(entityMock.getContent).thenReturn(inputStream)
@@ -63,8 +82,8 @@ class HttpResponseTests extends AnyFunSuite {
     when(responseMock.getEntity).thenReturn(entityMock)
 
     // Act
-    val response = new HttpResponse(responseMock)
-    val rewindableHttpResponse = response.getRewindableHttpResponse
+    val response               = new HttpResponse(responseMock)
+    val rewindableHttpResponse = response.getRewindableHttpResponse.get
     rewindableHttpResponse.close()
 
     // Assert
@@ -76,8 +95,8 @@ class HttpResponseTests extends AnyFunSuite {
 
     // Arrange
     val responseMock = mock[CloseableHttpResponse]
-    val entityMock = mock[HttpEntity]
-    val inputStream = mock[InputStream]
+    val entityMock   = mock[HttpEntity]
+    val inputStream  = mock[InputStream]
     when(inputStream.markSupported()).thenReturn(false)
     when(inputStream.read(any[Array[Byte]])).thenReturn(-1)
     when(entityMock.getContent).thenReturn(inputStream)
@@ -98,8 +117,8 @@ class HttpResponseTests extends AnyFunSuite {
 
     // Arrange
     val responseMock = mock[CloseableHttpResponse]
-    val httpEntity = mock[HttpEntity]
-    val inputStream = mock[InputStream]
+    val httpEntity   = mock[HttpEntity]
+    val inputStream  = mock[InputStream]
     when(httpEntity.getContent).thenReturn(inputStream)
     when(responseMock.getEntity).thenReturn(httpEntity)
 
@@ -116,15 +135,15 @@ class HttpResponseTests extends AnyFunSuite {
 
     // Arrange
     val responseMock = mock[CloseableHttpResponse]
-    val httpEntity = mock[HttpEntity]
-    val inputStream = mock[InputStream]
+    val httpEntity   = mock[HttpEntity]
+    val inputStream  = mock[InputStream]
     when(inputStream.markSupported()).thenReturn(true)
     when(httpEntity.getContent).thenReturn(inputStream)
     when(responseMock.getEntity).thenReturn(httpEntity)
 
     // Act
-    val response = new HttpResponse(responseMock)
-    val rewindableHttpResponse = response.getRewindableHttpResponse
+    val response               = new HttpResponse(responseMock)
+    val rewindableHttpResponse = response.getRewindableHttpResponse.get
     rewindableHttpResponse.close()
 
     // Assert
@@ -136,15 +155,15 @@ class HttpResponseTests extends AnyFunSuite {
 
     // Arrange
     val responseMock = mock[CloseableHttpResponse]
-    val httpEntity = mock[HttpEntity]
-    val inputStream = mock[InputStream]
+    val httpEntity   = mock[HttpEntity]
+    val inputStream  = mock[InputStream]
     when(inputStream.markSupported()).thenReturn(true)
     when(httpEntity.getContent).thenReturn(inputStream)
     when(responseMock.getEntity).thenReturn(httpEntity)
 
     // Act
-    val response = new HttpResponse(responseMock)
-    val rewindable = response.getRewindableHttpResponse
+    val response   = new HttpResponse(responseMock)
+    val rewindable = response.getRewindableHttpResponse.get
     response.close()
 
     // Assert
@@ -169,12 +188,13 @@ class HttpResponseTests extends AnyFunSuite {
     val response = new HttpResponse(responseMock)
 
     // Act
-    val rewindableHttpResponse = response.getRewindableHttpResponse // 1. Reset
-    val rewindableStream = rewindableHttpResponse.getStream // 2. Reset
+    val rewindableHttpResponse =
+      response.getRewindableHttpResponse.get // 1. Reset
+    val rewindableStream  = rewindableHttpResponse.getStream // 2. Reset
     val rewindableStream2 = rewindableHttpResponse.getStream //3. Reset
 
     // Assert
-    verify(streamMock).reset() // So, we don't reset, because entity.getContent returns the Stream again.
+    verify(streamMock).reset()                       // So, we don't reset, because entity.getContent returns the Stream again.
     verify(streamMock, never).read(any[Array[Byte]]) //Because we never read or touch the stream
     rewindableStream shouldBe rewindableStream2
     rewindableStream.get.available() shouldBe rewindableStream2.get.available()
@@ -183,7 +203,7 @@ class HttpResponseTests extends AnyFunSuite {
   test("When consume getStream multiple times from Rewindable") {
 
     // Arrange
-    val string = "content"
+    val string          = "content"
     val byteArrayEntity = new ByteArrayEntity(string.getBytes) // re-readable from #getContent
 
     val responseMock = mock[CloseableHttpResponse]
@@ -192,9 +212,9 @@ class HttpResponseTests extends AnyFunSuite {
     val response = new HttpResponse(responseMock)
 
     // Act
-    val rewindableHttpResponse = response.getRewindableHttpResponse
-    val attempt1 = rewindableHttpResponse.getString
-    val attempt2 = rewindableHttpResponse.getString
+    val rewindableHttpResponse = response.getRewindableHttpResponse.get
+    val attempt1               = rewindableHttpResponse.getString
+    val attempt2               = rewindableHttpResponse.getString
 
     // Assert
     attempt1.get shouldBe attempt2.get
@@ -207,12 +227,12 @@ class HttpResponseIntegrationTests extends AnyFunSuite {
 
   test("When source stream is NOT re-readable, then it converts source stream into byte array stream") {
 
-    val httpClient = HttpClientBuilder.create().build()
-    val url = "https://jsonplaceholder.typicode.com/todos/1"
+    val httpClient   = HttpClientBuilder.create().build()
+    val url          = "https://jsonplaceholder.typicode.com/todos/1"
     val httpResponse = httpClient.execute(RequestBuilder.get(url).build())
-    val response = new HttpResponse(httpResponse)
+    val response     = new HttpResponse(httpResponse)
 
-    val rewindableHttpResponse = response.getRewindableHttpResponse
+    val rewindableHttpResponse = response.getRewindableHttpResponse.get
 
     val stream1 = rewindableHttpResponse.getStream
     Using.resource(stream1.get) { resource =>
@@ -235,12 +255,12 @@ class HttpResponseIntegrationTests extends AnyFunSuite {
 
   test("large file") {
 
-    val httpClient = HttpClientBuilder.create().build()
-    val url = "http://212.183.159.230/20MB.zip"
+    val httpClient   = HttpClientBuilder.create().build()
+    val url          = "http://212.183.159.230/20MB.zip"
     val httpResponse = httpClient.execute(RequestBuilder.get(url).build())
-    val response = new HttpResponse(httpResponse)
+    val response     = new HttpResponse(httpResponse)
 
-    val rewindableHttpResponse = response.getRewindableHttpResponse
+    val rewindableHttpResponse = response.getRewindableHttpResponse.get
 
     val stream1 = rewindableHttpResponse.getStream
     Using.resource(stream1.get) { resource =>

@@ -1,4 +1,4 @@
-name := "streaming"
+name := "rewindableStream"
 
 version := "0.1"
 
