@@ -25,6 +25,11 @@ class HttpResponse(val response: CloseableHttpResponse, stream: Option[InputStre
         })
     }
 
+  def toOneTeamReadableHttpResponse: OneTimeReadableHttpResponse =
+    getStream
+      .map(stream => new OneTimeReadableHttpResponse(response, Some(RewindableStream(stream))))
+      .getOrElse(this.asInstanceOf[OneTimeReadableHttpResponse])
+
   /** Gets the string while consuming the underlying entity. If you don't want to consume
     * HttpResponse, then use [[getRewindableHttpResponse]] beforehand.
     *
@@ -67,6 +72,16 @@ class RewindableHttpResponse(inner: CloseableHttpResponse, rewindableStream: Opt
     })
 
   override def getString: Option[String] = getStream.map(s => new String(s.readAllBytes()))
+}
+
+class OneTimeReadableHttpResponse(inner: CloseableHttpResponse, stream: Option[InputStream]) extends HttpResponse(inner) {
+  var isRead = false
+
+  override def getStream: Option[InputStream] =
+    if (!isRead) {
+      isRead = true
+      stream
+    } else throw new RuntimeException("stream has been read")
 }
 
 /**

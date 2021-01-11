@@ -2,10 +2,10 @@ import org.apache.http.HttpEntity
 import org.apache.http.client.methods.{CloseableHttpResponse, RequestBuilder}
 import org.apache.http.entity.ByteArrayEntity
 import org.apache.http.impl.client.HttpClientBuilder
-import org.mockito.ArgumentMatchers.{any, endsWith}
+import org.mockito.ArgumentMatchers.any
 import org.mockito.MockitoSugar.{mock, never, times, verify, when}
 import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.matchers.must.Matchers.be
+import org.scalatest.matchers.must.Matchers.{a, be}
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 
 import java.io.InputStream
@@ -220,6 +220,28 @@ class HttpResponseTests extends AnyFunSuite {
     attempt1.get shouldBe attempt2.get
     attempt1.get shouldBe string
     attempt2.get shouldBe string
+  }
+
+  test("When OneTimeReadableHttpResponse then it should throw an exception") {
+
+    // Arrange
+    val string          = "content"
+    val byteArrayEntity = new ByteArrayEntity(string.getBytes) // re-readable from #getContent
+
+    val responseMock = mock[CloseableHttpResponse]
+    when(responseMock.getEntity).thenReturn(byteArrayEntity)
+
+    val response = new HttpResponse(responseMock)
+
+    // Act
+    val oneTime = response.toOneTeamReadableHttpResponse
+
+    // Assert
+    val firstTimeRead = oneTime.getStream.get
+    new String(firstTimeRead.readAllBytes()) shouldBe string
+
+    a[RuntimeException] should be thrownBy oneTime.getStream
+    a[RuntimeException] should be thrownBy oneTime.getString
   }
 }
 
